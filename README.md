@@ -20,9 +20,10 @@ The following scripts were altered to read differently labelled data; otherwise,
 - *UMAP_feats.py*  
 - *UMAP_indices.py*  
 
-## In R, perform clustering analysis and plot:  
+## In R, perform clustering analysis and plot UMAPs:  
 
-- *Cluster_analysis.R*  
+- *Cluster_analysis.R*
+- *UMAP_plots.R*
 
 ## In R, perform redundancy analysis and plot:  
 
