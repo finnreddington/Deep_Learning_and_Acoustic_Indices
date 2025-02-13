@@ -4,7 +4,7 @@ Steps to replicate the analysis in *Combining Deep Learning with Standard Acoust
 
 ## In Python, calculate indices and deep-learning features:
 
-Following the analysis by Williams et al. (2024)
+Following the analysis by [Williams et al. (2024)](https://github.com/BenUCL/Reef-acoustics-and-AI).
 
 The following scripts were altered to read differently labelled data; otherwise, the model is identical to Williams et al. (2024):  
 
