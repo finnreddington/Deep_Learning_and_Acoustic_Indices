@@ -29,5 +29,28 @@ The following scripts were altered to read differently labelled data; otherwise,
 
 - *Redundancy_Analysis.R*  
 
+## Recreate the conda environment used for this project:
+The analysis in this study was performed on a INSERT MACHINE and OS. To recreate the env, run the following commands:
 
+```
+# clone this repo and navigate to it
+git clone https://github.com/finnreddington/Deep_Learning_and_Acoustic_Indices.git 
+cd Deep_Learning_and_Acoustic_Indices 
+```
 
+You will then need to download the vggish_model.ckpt file from the following link: 
+https://storage.googleapis.com/audioset/vggish_model.ckpt
+
+Then place this in the Audioset folder and run the following commands:
+
+```
+# Recreate the conda env from the .yml
+conda env create --file vggish-env.yml --name vggish-env 
+
+# Activate the conda env
+conda activate vggish-env 
+
+# Run the smoke test to check vggish is working in the env. Should return 'Looks good to me!'.
+cd Audioset
+python vggish_smoketest.py
+```
