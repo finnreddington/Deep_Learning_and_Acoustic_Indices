@@ -30,7 +30,7 @@ The following scripts were altered to read differently labelled data; otherwise,
 - *Redundancy_Analysis.R*  
 
 ## Recreate the conda environment used for this project:
-The analysis in this study was performed on a INSERT MACHINE and OS. To recreate the env, run the following commands:
+The analysis in this study was performed on a Dell XPS 15 and Windows 11. To recreate the env, run the following commands:
 
 ```
 # clone this repo and navigate to it
