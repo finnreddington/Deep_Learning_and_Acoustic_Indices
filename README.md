@@ -1,6 +1,6 @@
 # README
 
-Steps to replicate the analysis in *Combining Deep Learning with Standard Acoustic Indices Gives Greater Understanding of Coral Reef Soundscapes* (2025), use the scripts (indicated in *italics*) following the steps below.
+Steps to replicate the analysis in *Combining Deep Learning with Standard Acoustic Indices Gives Greater Understanding of Coral Reef Soundscapes* (2025), use the scripts (indicated in *italics*) following the steps below. If you use this code please cite Reddington et al (2025).
 
 ## In Python, calculate indices and deep-learning features:
 
