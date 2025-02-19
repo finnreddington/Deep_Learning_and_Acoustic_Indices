@@ -172,5 +172,5 @@ combined_plot_both <- cowplot::plot_grid(
   theme(plot.margin = unit(c(0, 0, 0, 1), "cm")) 
 
 # Save the final plot
-ggsave("outputs/Fig2_test.png", combined_plot_both, width = 10, height = 10, dpi = 300)
+ggsave("Outputs/Fig2.png", combined_plot_both, width = 10, height = 10, dpi = 300)
 

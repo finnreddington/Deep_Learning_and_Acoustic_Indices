@@ -26,7 +26,7 @@ library(LaCroixColoR)
 
 # Load data
 # Load the DL features that were calulated in Python ('Kimbe_features.csv'):
-data_feats <- read_csv("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/Kimbe_features.csv")
+data_feats <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_features.csv")
 
 ## Wrangle feats ----
 DL_feat <- 
@@ -46,7 +46,7 @@ DL_feat <- na.omit(DL_feat)
 
 ## Wrangle indices data_inds ----
 # Load the indices from the output folder ('Kimbe_indices.csv')
-data_inds  <- read_csv("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
+data_inds  <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
 
 data_inds <- data_inds %>% 
   rename('Filename' = minute) %>% # rename column

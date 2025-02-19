@@ -3,7 +3,7 @@
 library(tidyverse)
 
 # Load the indices from the output folder ('Kimbe_indices.csv')
-data <- read.csv("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
+data <- read.csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
 
 # wrangle
 data <- data %>% 
