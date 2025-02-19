@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+=======
+Scratch/
+__pycache__/
+Audioset/vggish_model.ckpt
+>>>>>>> 016d97d1db24dbeae13b5a275e4b71dcbf87ef35

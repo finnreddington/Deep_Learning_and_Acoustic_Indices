@@ -1,10 +1,10 @@
 # README
 
-Steps to replicate the analysis in *Combining Deep Learning with Standard Acoustic Indices Gives Greater Understanding of Coral Reef Soundscapes* (2025), use the scripts (indicated in *italics*) following the steps below.
+Steps to replicate the analysis in *Combining Deep Learning with Standard Acoustic Indices Gives Greater Understanding of Coral Reef Soundscapes* (2025), use the scripts (indicated in *italics*) following the steps below. If you use this code please cite Reddington et al (2025).
 
 ## In Python, calculate indices and deep-learning features:
 
-Following the analysis by Williams et al. (2024)
+Following the analysis by [Williams et al. (2024)](https://github.com/BenUCL/Reef-acoustics-and-AI).
 
 The following scripts were altered to read differently labelled data; otherwise, the model is identical to Williams et al. (2024):  
 
@@ -29,5 +29,38 @@ The following scripts were altered to read differently labelled data; otherwise,
 
 - *Redundancy_Analysis.R*  
 
+## Recreate the conda environment used for this project:
+The analysis in this study was performed on a Dell XPS 15 and Windows 11. To recreate the env, run the following commands:
 
+```
+# clone this repo and navigate to it
+git clone https://github.com/finnreddington/Deep_Learning_and_Acoustic_Indices.git 
+cd Deep_Learning_and_Acoustic_Indices 
+```
 
+You will then need to download the vggish_model.ckpt file from the following link: 
+https://storage.googleapis.com/audioset/vggish_model.ckpt
+
+Then place this in the Audioset folder and run the following commands:
+
+```
+# Recreate the conda env from the .yml
+conda env create --file vggish-env.yml --name vggish-env 
+
+# Activate the conda env
+conda activate vggish-env 
+
+# Run the smoke test to check vggish is working in the env. Should return 'Looks good to me!'.
+cd Audioset
+python vggish_smoketest.py
+```
+Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
+
+This work is licensed under a
+[Creative Commons Attribution 4.0 International License][cc-by].
+
+[![CC BY 4.0][cc-by-image]][cc-by]
+
+[cc-by]: http://creativecommons.org/licenses/by/4.0/
+[cc-by-image]: https://i.creativecommons.org/l/by/4.0/88x31.png
+[cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
