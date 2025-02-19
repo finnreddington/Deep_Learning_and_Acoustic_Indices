@@ -18,9 +18,9 @@ from time import strftime
 import time
 
 # Path to the location where your audio file are stored:
-audio_dir = date_parser(r"D:\audiodir_test")
+audio_dir = date_parser(r"")
 
-results_directory = r'C:\Users\fr15610\OneDrive - University of Bristol\Desktop\soundscape_AI\Reef soundscapes with AI\Results\PCNN_features'
+results_directory = r'C:\Reef soundscapes with AI\Results\PCNN_features'
 
 # define the function to extract features
 

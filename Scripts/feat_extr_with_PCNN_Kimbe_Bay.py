@@ -10,13 +10,13 @@ import os
 ### Change patsh if you structure folders
 
 # Path to the location where your audio file are stored:
-audio_dir = (r'D:\audiodir_test')
+audio_dir = (r'')
 
 # Path to folder containing vggish setup files and 'AudiosetAnalysis' downloaded from sarebs supplementary
 #vggish_files = r'/content/drive/MyDrive/Reef soundscapes with AI/Audioset' 
 
 # Output folder for results:
-output_folder_1min = r'C:\Users\fr15610\OneDrive - University of Bristol\Desktop\soundscape_AI\Reef soundscapes with AI\Results\PCNN_features'
+output_folder_1min = r'C:\Reef soundscapes with AI\Results\PCNN_features'
 
 #Navigate to the folder containing setup files, including AudiosetAnalysis downloaded from sarebs supplementary
 #os.chdir(vggish_files) 

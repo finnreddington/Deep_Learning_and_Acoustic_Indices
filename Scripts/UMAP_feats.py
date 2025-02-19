@@ -15,7 +15,7 @@ import random
 random.seed(123)
 
 # Uppload the csv of features and copy the path
-feats_path = r'C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv'
+feats_path = r'C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv'
 
 data = pd.read_csv (feats_path) #load dataframe
 data.head()
@@ -34,5 +34,5 @@ final_df = pd.concat([data[['minute']], umap_df], axis=1)
 
 final_df.head()
 
-# Save to CSV
-final_df.to_csv('C:/Users/fr15610/OneDrive - University of Bristol/Desktop/Kimbe/Kimbe_Bay_Soundscapes/data/UMAP_feats.csv', index=False,)
+# Save to CSV, insert path to your data folder:
+final_df.to_csv('C:/data/UMAP_feats.csv', index=False,)

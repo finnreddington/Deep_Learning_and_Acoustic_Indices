@@ -15,7 +15,7 @@ import random
 random.seed(123)
 
 # Uppload the csv of features and copy the path
-indices_path = r'C:/Users/fr15610/OneDrive - University of Bristol/Desktop/Kimbe/Kimbe_Bay_Soundscapes/data/indices_for_UMAP.csv'
+indices_path = r'C:/data/indices_for_UMAP.csv'
 
 data = pd.read_csv (indices_path) #load dataframe
 data.head()
@@ -34,5 +34,5 @@ final_df = pd.concat([data[['minute', 'habitat']], umap_df], axis=1)
 
 final_df.head()
 
-# Save to CSV
-final_df.to_csv('C:/Users/fr15610/OneDrive - University of Bristol/Desktop/Kimbe/Kimbe_Bay_Soundscapes/data/UMAP_indices.csv', index=False,)
+# Save to CSV, insert path to your data folder:
+final_df.to_csv('C:/data/UMAP_indices.csv', index=False,)
