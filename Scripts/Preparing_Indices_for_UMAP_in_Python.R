@@ -3,7 +3,7 @@
 library(tidyverse)
 
 # Load the indices from the output folder ('Kimbe_indices.csv')
-data <- read.csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
+load("Data/indices.Rdata")
 
 # wrangle
 data <- data %>% 
@@ -26,5 +26,5 @@ data$minute <- gsub("2304", "", data$minute) # remove the year
 data$minute <- gsub("_(\\d{2})(\\d{2})\\d{2}$", "_\\1_\\2", data$minute) # format as 'MM_hh_mm'
 
 # save as a csv file
-write_csv(data, "data/indices_for_UMAP.csv")
+write_csv(data, "Data/indices_for_UMAP.csv")
 
