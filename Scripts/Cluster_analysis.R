@@ -11,7 +11,10 @@ library(mclust)
 
 # Load data ----
 ## Feature embeddings ----
-data_feats <- read_csv("data/UMAP_feats.csv")
+
+load("Data/UMAP_feats.Rdata")
+data_feats <- data_UMAP
+rm(data_UMAP)
 
 # wrangle:
 data_feats <- data_feats %>%
@@ -46,16 +49,12 @@ data_feats <- data_feats %>%
   )) %>% 
   select(Habitat, Reef, everything())
 
-rm(data)
-
 # Get just UMAP variables for clustering
 data_feat_num <- data_feats %>% 
   select(UMAP_1, UMAP_2)
 
-rm(data)
-
 ## Indices ----
-data_indices <- read_csv("data/UMAP_indices.csv")
+data_indices <- read_csv("Data/UMAP_indices.csv")
 
 # rename cols:
 data_indices <- data_indices %>% 
