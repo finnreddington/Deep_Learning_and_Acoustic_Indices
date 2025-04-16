@@ -22,31 +22,35 @@ library(patchwork)
 library(ggpubr)
 library(packfor)
 library(gridExtra)
-library(LaCroixColoR)
 
 # Load data
 # Load the DL features that were calulated in Python ('Kimbe_features.csv'):
-data_feats <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_features.csv")
+# For final submission:
+# data_feats <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_features.csv") 
+# For working:
+load("Data/features.Rdata")
 
 ## Wrangle feats ----
 DL_feat <- 
-data_feats %>% rename(feat = `...1`) %>% 
-  pivot_longer(cols = all_of(colnames(data_feats)[-1]), names_to = "Filename", values_to = "val") %>% 
-  separate_wider_delim(Filename, delim = "T", names = c("Filename", "x"), cols_remove = TRUE) %>% # split to delete extra timestamp info
-  select(-x) %>% 
+  features %>% rename(feat = `...1`) %>% 
+  pivot_longer(cols = all_of(colnames(features)[-1]), names_to = "Filename", values_to = "val") %>% 
+  #  separate_wider_delim(Filename, delim = "_", too_many = "merge", names = c("Filename", "x"), cols_remove = TRUE) %>% # split to delete extra timestamp info 
+  # might need in final code but not for .RData object ^^
+  #select(-x) %>% 
   pivot_wider(names_from = feat, values_from = val) 
 
 # Format Filename to match indices:
-DL_feat$Filename <- gsub("2304", "", DL_feat$Filename) # remove the year
-DL_feat$Filename <- gsub("_(\\d{2})(\\d{2})\\d{2}$", "_\\1_\\2", DL_feat$Filename) # format as 'MM_hh_mm'
+#DL_feat$Filename <- gsub("2304", "", DL_feat$Filename) # remove the year
+#DL_feat$Filename <- gsub("_(\\d{2})(\\d{2})\\d{2}$", "_\\1_\\2", DL_feat$Filename) # format as 'MM_hh_mm'
 
 #Check for NAs:
 DL_feat <- na.omit(DL_feat)
-
+rm(features)
 
 ## Wrangle indices data_inds ----
 # Load the indices from the output folder ('Kimbe_indices.csv')
-data_inds  <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv")
+# data_inds  <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv") #for final code
+data_inds <- read_csv("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/data/compound_index.csv")
 
 data_inds <- data_inds %>% 
   rename('Filename' = minute) %>% # rename column
@@ -143,7 +147,7 @@ DL_feat <- DL_feat_filtered
 identical(metadata[['Filename']], DL_feat[['Filename']])# check they're the same
 
 #remove from env to avoid confusion
-rm(data_inds);rm(data_feats); rm(DL_feat_filtered)
+rm(data_inds);rm(DL_feat_filtered)
 
 # We now have two data sets that match up: 
 # metadata - contains time/place info and acoustic indices
@@ -272,12 +276,6 @@ biplot_df_full <-
   mutate(perc2 = round((sqrt2/sum(sqrt2)*100))) %>% 
   select(Index, RDA1, perc1, RDA2, perc2)
 
-# RDA2
-biplot_df_full %>% 
-  reframe(pos1 = make_positive(RDA2)) %>% # make all values positive
-  reframe(sqrt1 = sqrt(pos1)) %>%  # take the square root, divide by sum and x by 100
-  reframe(perc1 = round((sqrt1/sum(sqrt1)*100))) 
-
 ### Plotting ----
 rda_scores_full <- rda_full %>%
   fortify()
@@ -338,6 +336,8 @@ RDA_plot <- ggplot() +
   scale_x_continuous(paste("RDA1", sprintf('(%0.1f%% explained var.)', eig_full[1] / sum(eig_full) * 100)),
                      breaks = seq(-5, 1, by=0.1)) +
   custom_theme
+
+RDA_plot
 
 ggsave("outputs/Fig3.png", RDA_plot, width = 9, height = 9, dpi = 300)
 
