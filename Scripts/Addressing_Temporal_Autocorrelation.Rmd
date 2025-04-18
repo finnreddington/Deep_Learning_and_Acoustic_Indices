@@ -1,0 +1,734 @@
+---
+title: "Temporal Autocorrelation"
+author: "Finn Reddington"
+date: "2025-04-16"
+output:
+  html_document:
+    self_contained: true
+---
+
+## Plan for Dealing with Temporal Autocorrelation
+
+#### 1 - Prep: Make sure all recordings are sub-setted to the same sampling intensity (to correct for different duty cycles during data collection)
+
+#### 2 - Diagnosis: How severe is TA?
+
+#### 3 - Addressing it:
+           (i) Subsampling 
+           (ii) Model time: this may account for greatest source of variablity
+           (iii) Using autoregressive models
+
+## 1. Sub-sample to get all recs to 1 in 3 mins sampling intensity:
+(i) First load and wrangle:
+```{r, message = FALSE, warning=FALSE}
+# RDA Data Wrangle
+setwd("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/Deep_Learning_and_Acoustic_Indices")
+
+# Wrangling and setup----
+## Load packages and data ----
+library(tidyverse)
+library(vegan)
+library(corrplot)
+library(car)
+library(mvabund)
+library(scales)
+library(ggvegan)
+library(ggrepel)
+library(ggExtra)
+library(ggfortify)
+library(ggplot2)
+library(GGally)
+library(glmmTMB)
+library(gllvm)
+library(ape)
+library(readxl)
+library(patchwork)
+library(ggpubr)
+library(packfor)
+library(gridExtra)
+
+# Load data
+# Load the DL features that were calulated in Python ('Kimbe_features.csv'):
+# For final submission:
+# data_feats <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_features.csv") 
+# For working:
+load("Data/features.Rdata")
+
+## Wrangle feats ----
+DL_feat <- 
+  features %>% rename(feat = `...1`) %>% 
+  pivot_longer(cols = all_of(colnames(features)[-1]), names_to = "Filename", values_to = "val") %>% 
+  #  separate_wider_delim(Filename, delim = "_", too_many = "merge", names = c("Filename", "x"), cols_remove = TRUE) %>% # split to delete extra timestamp info 
+  # might need in final code but not for .RData object ^^
+  #select(-x) %>% 
+  pivot_wider(names_from = feat, values_from = val) 
+
+# Format Filename to match indices:
+#DL_feat$Filename <- gsub("2304", "", DL_feat$Filename) # remove the year
+#DL_feat$Filename <- gsub("_(\\d{2})(\\d{2})\\d{2}$", "_\\1_\\2", DL_feat$Filename) # format as 'MM_hh_mm'
+
+#Check for NAs:
+DL_feat <- na.omit(DL_feat)
+rm(features)
+
+## Wrangle indices data_inds ----
+# Load the indices from the output folder ('Kimbe_indices.csv')
+# data_inds  <- read_csv("C:/Reef soundscapes with AI/Results/PCNN_features/Kimbe_indices.csv") #for final code
+data_inds <- read_csv("C:/Users/fr15610/OneDrive - University of Bristol/Desktop/soundscape_AI/Reef soundscapes with AI/Results/PCNN_features/data/compound_index.csv")
+
+data_inds <- data_inds %>% 
+  rename('Filename' = minute) %>% # rename column
+  select(-1) # remove row number col
+
+data_inds <- data_inds %>%
+  mutate(reef = sub("^(.*?)_.*", "\\1", Filename)) %>% 
+  select(-c(fish_Hf, shrimp_Hf)) %>% # remove Hf as correlated w/ H
+  select(Filename, reef, everything())
+
+# remove st dev cols:
+cols_to_remove <- grep("_std", names(data_inds)) 
+data_inds <- data_inds[-cols_to_remove]
+
+# remove full spectrum cols:
+cols_to_remove <- grep("full_", names(data_inds))
+data_inds <- data_inds[-cols_to_remove]
+
+# Rename cols to be less suggestive:
+data_inds <- data_inds %>% # 'fish' becomes 'low_freq'
+  rename_with(~ gsub("^fish", "low_freq", .x), starts_with("fish")) 
+data_inds <- data_inds %>% # 'shrimp' becomes 'high_freq'
+  rename_with(~ gsub("^shrimp", "high_freq", .x), starts_with("shrimp"))
+
+# Reformat Filename col:
+data_inds$Filename <- gsub("\\.WAV$", "", data_inds$Filename, ignore.case = TRUE) # remove the '.WAV' suffix
+data_inds$Filename <- gsub("2304", "", data_inds$Filename) # remove the year
+data_inds$Filename <- gsub("_(\\d{2})(\\d{2})\\d{2}$", "_\\1_\\2", data_inds$Filename) # format as 'MM_hh_mm'
+
+# Check for NAs:
+data_inds <- na.omit(data_inds)
+
+# Split time variable:
+data_inds <- data_inds %>%
+  extract(Filename, into = c("date", "hour", "minute"), 
+          regex = ".*_(\\d{2})_(\\d{2})_(\\d{2})", remove = FALSE) %>%
+  mutate(datetime = paste(date, hour, minute, sep = "_"),
+         date = as.integer(date), 
+         hour = as.integer(hour),
+         minute = as.integer(minute)) 
+
+# create a 'diurnal'col
+data_inds <- data_inds %>%
+  mutate(hour = as.integer(hour), # Ensure 'hour' is an integer for comparison
+         diurnal = ifelse(hour >= 6 & hour < 18, "day", "night"))
+
+# Rename the reefs so legend looks good:
+data_inds <- data_inds %>%
+  rename("Reef" = reef) %>% 
+  mutate(Reef = case_when(
+    Reef %in% c("firstreef") ~ "First Reef",
+    Reef %in% c("lubaluba") ~ "Lubaluba",
+    Reef %in% c("lui") ~ "Lui",
+    Reef %in% c("tuare") ~ "Tuare",
+    Reef %in% c("inglis") ~ "Inglis",
+    Reef %in% c("ema") ~ "Emma",
+    Reef %in% c("joelles") ~ "Joelles",
+    Reef %in% c("kimbe") ~ "Kimbe Island",
+    Reef %in% c("garove") ~ "Garove",
+    Reef %in% c("narega1") ~ "Narega West",
+    Reef %in% c("narega2") ~ "Narega East",
+    TRUE ~ Reef  # In case there are any other values not covered above
+  ))
+
+# Add habitat col:
+data_inds <- data_inds %>%
+  mutate(Habitat = case_when(
+    Reef %in% c("First Reef", "Lubaluba", "Lui") ~ "Inshore",
+    Reef %in% c("Inglis", "Emma", "Joelles") ~ "Pinnacle",
+    Reef %in% c("Tuare", "Kimbe Island") ~ "Island",
+    Reef %in% c("Garove", "Narega West", "Narega East") ~ "Offshore Island",
+    TRUE ~ "unknown" 
+  ))
+
+# Order and remove redundant cols:
+data_inds <- data_inds %>% 
+  select(-c(hour, minute)) %>% 
+  select(Filename, Reef, Habitat, datetime, date, diurnal, everything()) 
+```
+
+### Subset the reefs so they have the same sampling intensity:
+
+ Recordings were 1 minute long with sleep cycles of:
+ 
+ 5 secs = Emma, Inglis, Kimbe Island, Garove, Narega1, Narega 2 
+ 
+ 30 secs = Joelles
+ 
+ 120 secs = First Reef, Lubaluba, Lui, Tuare
+
+```{R}
+data_inds <- data_inds %>%
+  arrange(Reef, datetime) %>%
+  group_by(Reef) %>%
+  mutate(row = row_number()) %>%
+  filter(
+    case_when(
+      Reef %in% c("Emma", "Garove", "Inglis", "Kimbe Island", "Narage East", "Narage West") ~ row %% 3 == 1,
+      Reef == "Joelles" ~ row %% 2 == 1,
+      TRUE ~ TRUE  # Keep all for 120s interval reefs
+    )
+  ) %>%
+  select(-row) %>%
+  ungroup()
+
+# Prepare data for RDA ----
+# get metadata, left-join ensures its the same order
+metadata <- DL_feat %>% select(Filename) %>% 
+  left_join(data_inds, by = "Filename")
+
+# Check for NAs
+metadata <- na.omit(metadata)
+
+DL_feat_filtered <- inner_join(DL_feat, data_inds, by="Filename", keep = FALSE)
+DL_feat_filtered <- DL_feat_filtered %>% 
+  select(names(DL_feat))
+DL_feat <- DL_feat_filtered
+
+# Make sure they match:
+identical(metadata[['Filename']], DL_feat[['Filename']])# check they're the same
+
+#remove from env to avoid confusion
+rm(data_inds);rm(DL_feat_filtered)
+
+head(DL_feat)
+
+head(metadata)
+```
+
+ **We now have two data sets that match up:**
+ 
+  - metadata - contains time/place info and acoustic indices
+ 
+  - DL_feat - contains the deep-learning features
+ 
+## 2. Check how bad the Temporal Autocorrelation is:
+
+Prepare the data for Redundancy Analysis (RDA): center Y and standardize X
+```{r}
+# scale Y vars:
+DL_cent <- DL_feat %>% # make a centered but not scaled version
+  mutate(across(-c(1), ~ {
+    scaled_vector <- as.vector(scale(., scale = FALSE))
+    return(scaled_vector)
+  }, .names = "{col}"))  %>% 
+  column_to_rownames(var = "Filename")
+
+# centre and scale acoustic_indices
+metadata_sd <- metadata %>% 
+  select(-c(Reef:diurnal)) %>% 
+  column_to_rownames(var = "Filename") %>% 
+  mutate(across(everything(), ~ {
+    scaled_vector <- as.vector(scale(., scale = TRUE))
+    return(scaled_vector)
+  }, .names = "{col}"))
+```
+
+Check for collinearlity:
+```{r}
+# Checking assumptions ----
+## collinarity in X vars ----
+cor.table = cor(metadata_sd) # defo some highly correlated vars
+corrplot(cor.table)
+
+# ADI and BI are correlated, NDSI is correlated. So remove ADI and NDSI
+metadata_sd <- metadata_sd %>% select(-c(low_freq_ADI, high_freq_ADI))
+metadata_sd <- metadata_sd %>% select(-c(NDSI))
+cor.table = cor(metadata_sd) # defo some highly correlated vars
+corrplot(cor.table) 
+
+# high_freq_M is still correlated highly
+metadata_sd <- metadata_sd %>% select(-c(high_freq_M))
+cor.table = cor(metadata_sd) 
+corrplot(cor.table) 
+```
+
+Looks pretty good now.
+
+
+Run an RDA:
+```{r, results='hide'}
+rda1 <- rda(DL_cent ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+                data=metadata_sd, 
+                scale=FALSE,
+                na.action=na.omit)
+
+```
+
+Check:
+```{r}
+RsquareAdj(rda1)
+# summary(rda1)
+vif.cca(rda1) 
+```
+
+### Check Temporal Autocorrelation for a few Y variables
+```{r, results="hide"}
+res_rda1 <- residuals(rda1)
+
+lapply(1:3, function(i) acf(res_rda1[, i], lag.max = 1000, main = paste("ACF of Variable", i)))
+
+pacf(res_rda1[,1], lag.max = 20)
+
+acf_values <- acf(res_rda1, plot = FALSE)
+acf1 <- acf_values$acf[1:5]
+
+```
+
+Many of these residuals are highly correlated around a day, or 480 steps (1 in 3 mins sampling intensity = 20 per hour x 24). But also at longer and shorter times too:
+
+```{r, results = "hide"}
+
+# Increase 'lag.max' to explore a longer time frame
+lapply(1:3, function(i) acf(res_rda1[, i], lag.max = 10000, main = paste("ACF of Variable", i)))
+
+```
+
+Seems to be correlated at other steps too but the **strongest is crepusclar and diurnal**. Try to account for that in the model. 
+
+An option is to try and include categorical variables for 'Day/Night'and a continuous time variable:
+
+```{r}
+# add cols for duirnal and reef to metadata_sd
+# select categorical variables (+time_cont)
+metadata_cat <- metadata %>% select(Filename, Reef, diurnal, datetime) %>%
+  separate(datetime, into = c("day", "hour", "minute"), sep = "_", convert = TRUE) %>% 
+    mutate(datetime_full = as.POSIXct(paste(day, hour, minute), format = "%d %H %M")) %>% 
+  # Calculate continuous time: minutes since the earliest datetime
+  mutate(time_cont = as.numeric(difftime(datetime_full, min(datetime_full), units = "mins")))
+
+# scale numeric variables
+metadata_sd <- metadata %>% 
+  select(-c(Reef:diurnal)) %>% 
+  column_to_rownames(var = "Filename") %>% 
+  mutate(across(everything(), ~ {
+    scaled_vector <- as.vector(scale(., scale = TRUE))
+    return(scaled_vector)
+  }, .names = "{col}")) %>% 
+  rownames_to_column(var="Filename")
+
+# Join numeric and categorical variables
+metadata_sd_cat <- metadata_sd %>% 
+  left_join(metadata_cat, by = "Filename") %>% 
+  column_to_rownames(var="Filename")
+
+# Check they're the same:
+identical(metadata_sd[['low_freq_ACI']], metadata_sd_cat[['low_freq_ACI']])# check they're the same
+
+
+```
+Looks good! Now, try an RDA with 'diurnal' as a categorical variable. Since much of the TA is associated with diunal cycles
+this might help account for the temporal structure of the data.
+
+Run a partial RDA that explores variation after accounting for diurnal effects:
+```{r, results='hide'}
+rda2 <- rda(DL_cent ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H + Condition(diurnal),
+                data=metadata_sd_cat, 
+                scale=FALSE,
+                na.action=na.omit)
+
+RsquareAdj(rda2)
+vif.cca(rda2)
+# summary(rda2)
+```
+Check the acf plots:
+```{r, results = "hide"}
+res_rda2 <- residuals(rda2)
+
+lapply(1:3, function(i) acf(res_rda2[, i], lag.max = 1000, main = paste("ACF of Variable", i)))
+
+pacf(res_rda2[,1], lag.max = 20)
+
+acf_values <- acf(res_rda2, plot = FALSE)
+acf2 <- acf_values$acf[1:5]
+
+```
+
+This hasn't changed the acf plots at all. What about on longer timescales?
+```{r, results = "hide"}
+lapply(1:3, function(i) acf(res_rda2[, i], lag.max = 10000, main = paste("ACF of Variable", i)))
+```
+OK, we can compare the acf values to see if they're any different for the first few lags:
+```{r}
+acf1
+acf2
+```
+Basically the same. Try time as a continuous variable.
+
+```{r, results='hide'}
+rda3 <- rda(DL_cent ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H + Condition(time_cont),
+                data=metadata_sd_cat, 
+                scale=FALSE,
+                na.action=na.omit)
+
+RsquareAdj(rda3)
+vif.cca(rda3)
+# summary(rda2)
+```
+Check the acf plots:
+```{r, results = "hide"}
+res_rda3 <- residuals(rda3)
+
+lapply(1:3, function(i) acf(res_rda3[, i], lag.max = 1000, main = paste("ACF of Variable", i)))
+
+pacf(res_rda3[,1], lag.max = 20)
+
+acf_values <- acf(res_rda3, plot = FALSE)
+acf3 <- acf_values$acf[1:5]
+```
+compare values:
+```{r}
+acf1
+acf3
+```
+Very marginal improvement. Try time as a continuous and diurnal variable:
+
+```{r, results='hide'}
+rda4 <- rda(DL_cent ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H + Condition(time_cont + diurnal),
+                data=metadata_sd_cat, 
+                scale=FALSE,
+                na.action=na.omit)
+
+RsquareAdj(rda4)
+```
+Check the acf plots:
+```{r, results = "hide"}
+res_rda4 <- residuals(rda4)
+
+lapply(1:3, function(i) acf(res_rda4[, i], lag.max = 1000, main = paste("ACF of Variable", i)))
+
+
+pacf(res_rda4[,1], lag.max = 20)
+
+acf_values <- acf(res_rda4, plot = FALSE)
+acf4 <- acf_values$acf[1:5]
+```
+
+compare with first model:
+```{r}
+acf1-acf4
+
+acf3-acf4
+```
+
+OK, so including time in the RDA as a predictor variable is not dealing with the TA. Next option is to try subsampling:
+
+# 3. Subsampling
+**Because recordings closer in time are more similar, we can lose some data and see if it's still auto correlated. Probably it will be, because the AT is so extreme and because there's strong dependence at a time lag of ~1 day. But let's see...**
+
+### 1min in 30 subsample
+Let's go extreme to see if it helps:
+```{r}
+metadata_10 <- metadata_sd_cat %>% 
+  filter(row_number() %% 10 == 1) %>% 
+  rownames_to_column(var="Filename") %>% 
+  arrange(Filename)
+
+DL_cent_10 <- metadata_10 %>%
+  select(Filename) %>%
+  left_join(
+    DL_cent %>% rownames_to_column(var = "Filename"),
+    by = "Filename"
+  ) 
+
+identical(metadata_10[['Filename']], DL_cent_10[['Filename']])
+
+DL_cent_10 <- DL_cent_10 %>% 
+  column_to_rownames(var = "Filename")
+
+```
+
+OK, lets try the basic model:
+```{r, results='hide'}
+rda5 <- rda(DL_cent_10 ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+                data=metadata_10, 
+                scale=FALSE,
+                na.action=na.omit)
+
+```
+
+Check TA for a few Y variables
+```{r, results = "hide"}
+res_rda5 <- residuals(rda5)
+
+lapply(1:3, function(i) acf(res_rda5[, i], lag.max = 200, main = paste("Subset - ACF of Variable", i)))
+
+pacf(res_rda5[,1], lag.max = 20)
+
+acf_values <- acf(res_rda5, plot = FALSE)
+acf5 <- acf_values$acf[1:5]
+
+# Compare to the full data:
+lapply(1:3, function(i) acf(res_rda1[, i], lag.max = 200, main = paste("Full - ACF of Variable", i)))
+```
+
+So, reducing our 1 in 3 mins sampling by x10 should lead to 1 in 30 mins. So a 12hr cycles should show up at lag 24 and 24hr cycles at lag 48.Indeed, for the subset we see peaks around 24 hrs, but overall there is a substantial reduction in TA. 
+
+Let's check the values:
+```{r}
+acf1
+acf5
+```
+ ACF values bear this out. Subsetting has helped.
+ 
+ Let's see if we condition our RDA on time, as per the next best model:
+```{r, results='hide'}
+rda6 <- rda(DL_cent_10 ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H + Condition(time_cont),
+                data=metadata_10, 
+                scale=FALSE,
+                na.action=na.omit)
+
+```
+
+Check TA for a few Y variables
+```{r, results = "hide"}
+res_rda6 <- residuals(rda6)
+
+lapply(1:3, function(i) acf(res_rda6[, i], lag.max = 200, main = paste("Subset + Time - ACF of Variable", i)))
+
+pacf(res_rda6[,1], lag.max = 20)
+
+acf_values <- acf(res_rda6, plot = FALSE)
+acf6 <- acf_values$acf[1:5]
+
+# Compare to subset without time:
+lapply(1:3, function(i) acf(res_rda5[, i], lag.max = 200, main = paste("Subset - ACF of Variable", i)))
+
+# Compare to the full data:
+lapply(1:3, function(i) acf(res_rda1[, i], lag.max = 200, main = paste("Full - ACF of Variable", i)))
+```
+
+Very small improvement for 2 out of 3 variables (var 2 seems to get marginally worse modelling with time!). 
+
+Check the numbers:
+```{r}
+acf1
+acf5
+acf6
+```
+
+Very marginal improvement. 
+
+**In Summary: Subsetting helps but time has not been modelled effectively.**
+
+### 1min in 60 subsample
+Let's go even more extreme; 1 recording per hour
+Let's go extreme to see if it helps:
+```{r}
+metadata_20 <- metadata_sd_cat %>% 
+  filter(row_number() %% 20 == 1) %>% 
+  rownames_to_column(var="Filename") %>% 
+  arrange(Filename)
+
+DL_cent_20 <- metadata_20 %>%
+  select(Filename) %>%
+  left_join(
+    DL_cent %>% rownames_to_column(var = "Filename"),
+    by = "Filename"
+  ) 
+
+identical(metadata_20[['Filename']], DL_cent_20[['Filename']])
+
+DL_cent_20 <- DL_cent_20 %>% 
+  column_to_rownames(var = "Filename")
+
+```
+
+OK, lets try the basic model:
+```{r, results='hide'}
+rda7 <- rda(DL_cent_20 ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+                data=metadata_20, 
+                scale=FALSE,
+                na.action=na.omit)
+
+```
+
+Check TA for a few Y variables
+```{r, results = "hide"}
+res_rda7 <- residuals(rda7)
+
+lapply(1:3, function(i) acf(res_rda7[, i], lag.max = 200, main = paste("Subset 1 in 60 mins - ACF of Variable", i)))
+
+pacf(res_rda7[,1], lag.max = 20)
+
+acf_values <- acf(res_rda7, plot = FALSE)
+acf7 <- acf_values$acf[1:5]
+
+# Compare to the 1 in 30 mins:
+lapply(1:3, function(i) acf(res_rda5[, i], lag.max = 200, main = paste("subset 1 in 30 mins - ACF of Variable", i)))
+
+# Compare to the full data:
+lapply(1:3, function(i) acf(res_rda1[, i], lag.max = 200, main = paste("Full - ACF of Variable", i)))
+```
+Does look better. Numbers:
+```{r}
+acf1
+acf5
+acf7
+```
+A big improvement. **So subsetting may be helpful**
+
+
+**Question: should I be comparing the same number of lags (e.g first 100) or the *time period* those lags represent (e.g. 10 days)? Seems to effect the analysis:**
+
+```{r, results = "hide"}
+res_rda7 <- residuals(rda7)
+
+# lag.max set to 10 days
+lapply(1, function(i) acf(res_rda7[, i], lag.max = 240, main = paste("Subset 1 in 60 mins - ACF of Variable", i)))
+
+pacf(res_rda7[,1], lag.max = 20)
+
+acf_values <- acf(res_rda7, plot = FALSE)
+acf7 <- acf_values$acf[1:5]
+
+# To compare over the same time period vary lag.max accordingly
+# Compare to the 1 in 30 mins:
+lapply(1, function(i) acf(res_rda5[, i], lag.max = 480, main = paste("subset 1 in 30 mins - ACF of Variable", i)))
+
+# Compare to the full data:
+lapply(1, function(i) acf(res_rda1[, i], lag.max = 4800, main = paste("Full - ACF of Variable", i)))
+```
+
+In this case the structure of the temporal dependence appears identical, just with fewer obs. Hmm...
+
+
+## 3. **Using Auto regressive Models**
+
+**The *vegan()* package lacks the functionality to implement RDA with autocorrelated variables. Luckily, RDA can be thought of as a PCA on the fitted values of a regression model. So if we can find a regression model that accounts for the TA, we can iterate over the response variables and perform a PCA on the fitted values.**
+
+We can use Generalized Least Squares (GLS) as it doesn't assume independent residuals. Let's try for the first Deep Learning variable and the subset that had the least TA (1 in 60 mins):
+
+```{r}
+# First create dataframes for the subset
+
+Y <- DL_cent_20[2]
+Y <- Y %>% rownames_to_column(var = "Filename") 
+Y <- Y %>% rename(feat_1 = `1`) 
+
+X <- metadata_20
+
+df <- inner_join(X, Y, by ="Filename")
+
+```
+
+Now we can specify a couple of models and compare:
+
+ - mod 1 = subset (1 in 60), no autoregressive term
+
+ - mod 2 = subset (1 in 60) + 1st order autoregressive term
+
+```{r, message=FALSE}
+library(nlme)
+
+# No autoregressive term:
+mod1 <- gls(feat_1 ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+            data = df)
+
+# First order AR term:
+mod2 <- gls(feat_1 ~ low_freq_ACI + low_freq_H + low_freq_M +
+                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+            correlation = corARMA(form = ~ time_cont|Reef, p = 1),
+            data = df)
+
+```
+
+OK, let's have a look at the autocorr:
+```{r, results = "hide"}
+# mod1:
+res1 <- residuals(mod1)
+acf1 <- acf(res1, type = "correlation")
+
+acf1
+acf1$acf[1:5]
+
+# mod2:
+res2 <- residuals(mod2)
+acf2 <- acf(res2, type = "correlation")
+acf2
+
+# acf values:
+acf1$acf[1:5]
+acf2$acf[1:5]
+
+# Check the AIC values:
+AIC(mod1, mod2)
+
+# Compare:
+anova(mod1, mod2)
+
+```
+ACF plots and values are identical. So this model hasn't helped. Try some higher order models:
+
+```{r, results = "hide"}
+
+mod3 <- gls(feat_1 ~ low_freq_ACI + low_freq_H + low_freq_M + 
+    low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+  correlation = corARMA(form = ~ time_cont | Reef, p = 2),
+  data = df)
+
+mod4 <- gls(feat_1 ~ low_freq_ACI + low_freq_H + low_freq_M + 
+    low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
+  correlation = corARMA(form = ~ time_cont | Reef, p = 3),
+  data = df)
+
+# mod3:
+res3 <- residuals(mod3)
+acf3 <- acf(res3, type = "correlation")
+
+# mod4:
+res4 <- residuals(mod4)
+acf4 <- acf(res4, type = "correlation")
+
+acf3$acf[1:5]
+acf4$acf[1:5]
+
+
+```
+Compare models:
+```{r, results = "hide"}
+# acf values:
+acf1$acf[1:5]
+acf2$acf[1:5]
+acf3$acf[1:5]
+acf4$acf[1:5]
+
+# AIC:
+AIC(mod1, mod2, mod3, mod4)
+
+# anova:
+anova(mod1, mod4)
+```
+**No statistical difference or improvement. The correlation term is not taking account of the TA**
+
+### What does this mean?
+A 3rd order correlation term for this sampling intensity means that the residual for each recording *cannot be explained by the 3 residuals before it*.
+
+This could be because it's really 24 hour cycles that matter, rather than a linear dependence on the past three hours. Tricky...
+
+### Thoughts:
+ - With this subsampling regime the ACF values are lower. Perhaps it's ok?
+ 
+ - Is there some other way to account for time?
+ 
+ - Is it possible that the acoustic indices simply *cannot explain* the variance in the deep learnt features that exhibit temporal dependence? That the temporal dependence is unrelated to soundscape charcteristics captured by the indices so whatever model we fit will make no difference. THis is plausible as the DL features are very likely to be detecting subtle things (e.g. species specific calls) that indices would miss. 
+
+
+
+
