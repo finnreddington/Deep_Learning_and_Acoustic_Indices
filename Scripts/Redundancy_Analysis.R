@@ -162,38 +162,11 @@ metadata_sub <- metadata %>%
 DL_sub <- DL_feat %>% 
   filter(Filename %in% metadata_sub$Filename) 
 
-# Subset 'day' and 'night' to explore seperately
-metadata_sub_day <- metadata_sub %>% 
-  filter(diurnal == "day")
-
-DL_sub_day <- DL_feat %>% 
-  filter(Filename %in% metadata_sub_day$Filename) 
-
-metadata_sub_night <- metadata_sub %>% 
-  filter(diurnal == "night")
-
-DL_sub_night <- DL_feat %>% 
-  filter(Filename %in% metadata_sub_night$Filename)
-
 rm(metadata); rm(DL_feat)
 
 ## center Y and standardize X ----
 # scale Y vars:
 DL_cent <- DL_sub %>% # make a centered but not scaled version
-  mutate(across(-c(1), ~ {
-    scaled_vector <- as.vector(scale(., scale = FALSE))
-    return(scaled_vector)
-  }, .names = "{col}"))  %>% 
-  column_to_rownames(var = "Filename")
-
-DL_cent_day <- DL_sub_day %>% # make a centered but not scaled version
-  mutate(across(-c(1), ~ {
-    scaled_vector <- as.vector(scale(., scale = FALSE))
-    return(scaled_vector)
-  }, .names = "{col}"))  %>% 
-  column_to_rownames(var = "Filename")
-
-DL_cent_night <- DL_sub_night %>% # make a centered but not scaled version
   mutate(across(-c(1), ~ {
     scaled_vector <- as.vector(scale(., scale = FALSE))
     return(scaled_vector)
@@ -209,23 +182,7 @@ metadata_sd <- metadata_sub %>%
     return(scaled_vector)
   }, .names = "{col}"))
 
-metadata_sd_day <- metadata_sub_day %>% 
-  select(-c(Reef:diurnal)) %>% 
-  column_to_rownames(var = "Filename") %>% 
-  mutate(across(everything(), ~ {
-    scaled_vector <- as.vector(scale(., scale = TRUE))
-    return(scaled_vector)
-  }, .names = "{col}"))
-
-metadata_sd_night <- metadata_sub_night %>% 
-  select(-c(Reef:diurnal)) %>% 
-  column_to_rownames(var = "Filename") %>% 
-  mutate(across(everything(), ~ {
-    scaled_vector <- as.vector(scale(., scale = TRUE))
-    return(scaled_vector)
-  }, .names = "{col}"))
-
-rm(DL_sub); rm(DL_sub_day); rm(DL_sub_night)
+rm(DL_sub)
 
 # Checking assumptions ----
 ## collinarity in X vars ----
@@ -340,102 +297,6 @@ RDA_plot <- ggplot() +
 RDA_plot
 
 ggsave("outputs/Fig3.png", RDA_plot, width = 9, height = 9, dpi = 300)
-
-
-
-## Day ----
-rda_day <- rda(DL_cent_day ~ low_freq_ACI + low_freq_H + low_freq_M +
-                  low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
-                data=metadata_sd_day, 
-                scale=FALSE,
-                na.action=na.omit)
-
-RsquareAdj(rda_day)
-summary(rda_day)
-vif.cca(rda_day) 
-
-# Extract biplot scores for table
-biplot_df_day <- as.data.frame(scores(rda_day, display = "bp")) %>% 
-  rownames_to_column(var='Index') %>% 
-  arrange(RDA1)
-
-### Plotting ----
-rda_scores_day <- rda_day %>%
-  fortify()
-
-rda_data_day <- rda_scores_day %>% filter(score=='sites') %>% 
-  rename(Filename = label) %>% 
-  left_join(metadata_sub_day, by = "Filename") 
-
-species_day <- rda_scores_day %>% filter(score=='species')
-eig_day <- eigenvals(rda_day)
-biplot_scores_day <- as.data.frame(rda_day$CCA$biplot)
-colnames(biplot_scores_day) <- c("RDA1", "RDA2")
-
-# Create ggplot
-p_day <- ggplot() +
-  geom_hline(yintercept = 0, linetype = 'dotted') +
-  geom_vline(xintercept = 0, linetype = 'dotted') +
-  geom_point(data = rda_data_day, aes(x = RDA1, y = RDA2, color = Reef), alpha = 0.6) +
-  geom_segment(data = biplot_scores_day, aes(x = 0, y = 0, xend = RDA1/2, yend = RDA2/2),
-               arrow = arrow(length = unit(0.02, "npc")), color = "black", linewidth=0.7) +
-  geom_text_repel(data = biplot_scores_day, aes(x = RDA1/2, y = RDA2/2, label = row.names(biplot_scores_day)),
-                  size = 5,  # Increase text size
-                  box.padding = 0.4,  # Increase box padding
-                  point.padding = 0.8,  # Increase point padding
-                  segment.color = 'grey50')+
-  scale_y_continuous(paste("RDA2", sprintf('(%0.1f%%)', eig_day[2] / sum(eig_day) * 100))) +
-  scale_x_continuous(paste("RDA1", sprintf('(%0.1f%% explained var.)', eig_day[1] / sum(eig_day) * 100))) +
-  theme_bw(base_size = 14)+
- ggtitle("(b) Day")+
-  theme(plot.title = element_text(face="bold"))
-
-## Night ----
-rda_night <- rda(DL_cent_night ~ low_freq_ACI + low_freq_H + low_freq_M +
-                 low_freq_BI + high_freq_ACI + high_freq_BI + high_freq_H,
-               data=metadata_sd_night, 
-               scale=FALSE,
-               na.action=na.omit)
-
-RsquareAdj(rda_night)
-summary(rda_night)
-vif.cca(rda_night) 
-
-biplot_df_night <- as.data.frame(scores(rda_night, display = "bp")) %>% 
-  rownames_to_column(var='Index') %>% 
-  arrange(RDA1)
-
-### Plotting ----
-rda_scores_night <- rda_night %>%
-  fortify()
-
-rda_data_night <- rda_scores_night %>% filter(score=='sites') %>% 
-  rename(Filename = label) %>% 
-  left_join(metadata_sub_night, by = "Filename") 
-
-species_night <- rda_scores_night %>% filter(score=='species')
-eig_night <- eigenvals(rda_night)
-biplot_scores_night <- as.data.frame(rda_night$CCA$biplot)
-colnames(biplot_scores_night) <- c("RDA1", "RDA2")
-
-# Create ggplot
-p_night <- ggplot() +
-  geom_hline(yintercept = 0, linetype = 'dotted') +
-  geom_vline(xintercept = 0, linetype = 'dotted') +
-  geom_point(data = rda_data_night, aes(x = -RDA1, y = RDA2, color = Reef), alpha = 0.5) +
-  geom_segment(data = biplot_scores_night, aes(x = 0, y = 0, xend = -RDA1/2, yend = RDA2/2),
-               arrow = arrow(length = unit(0.02, "npc")), color = "black") +
-  geom_text_repel(data = biplot_scores_night, aes(x = -(RDA1/2), y = RDA2/2, label = row.names(biplot_scores_night)),
-                  box.padding = 0.35, point.padding = 0.5,
-                  segment.color = 'grey50') +
-  theme(legend.position = "none",
-        legend.background = element_rect(fill = "white", color = "white"))+
-  scale_y_continuous(paste("RDA2", sprintf('(%0.1f%%)', eig_night[2] / sum(eig_night) * 100))) +
-  scale_x_continuous(paste("RDA1", sprintf('(%0.1f%% explained var.)', eig_night[1] / sum(eig_night) * 100))) +
-  theme_bw(base_size = 14)+
-  ggtitle("(c) Night")+
-  theme(plot.title = element_text(face="bold"))
-
 
 # checking for linear X~Y relationships ----
 plots <- list() # List to store plots
